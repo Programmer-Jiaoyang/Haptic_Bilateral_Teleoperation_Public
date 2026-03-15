@@ -85,6 +85,10 @@ Version 0.0.4
 
 - Add Github pages for the project.
 
+Version 0.0.5
+
+- To be updated
+
 
 
 
