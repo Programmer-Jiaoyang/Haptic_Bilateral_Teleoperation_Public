@@ -94,14 +94,18 @@ def main(args=None):
     node = RealTimePlotter()
 
     try:
-        while plt.fignum_exists(node.fig.number):
-            rclpy.spin_once(node, timeout_sec=0.05)
-            plt.pause(0.01)
-    except KeyboardInterrupt:
+        while rclpy.ok() and plt.fignum_exists(node.fig.number):
+            rclpy.spin_once(node, timeout_sec=0)
+            plt.pause(0.001)
+    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
         pass
 
-    node.destroy_node()
-    rclpy.shutdown()
+    finally:
+        plt.close('all')
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
 
 
 if __name__ == "__main__":

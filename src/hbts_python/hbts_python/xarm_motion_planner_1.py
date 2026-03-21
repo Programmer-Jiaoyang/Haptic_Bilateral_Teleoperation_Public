@@ -15,7 +15,7 @@ import numpy as np
 
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
-from std_msgs.msg import Float32MultiArray,Bool, Float32
+from std_msgs.msg import Float32MultiArray, Float32
 from xarm.wrapper import XArmAPI
 
 # class LowPassFilter:
@@ -31,20 +31,38 @@ from xarm.wrapper import XArmAPI
 #         self.last_value = self.alpha * value + (1 - self.alpha) * self.last_value
 #         return self.last_value
 
+def orientation_transformation(xarm_default_eul, haptic_eul):
+    # Tool frame wrt base frame
+    RotArm = R.from_euler('xyz', xarm_default_eul)
+    # New pose in base frame
+    RotHap = R.from_euler('xyz', haptic_eul)
+    # New pose in tool frame 
+    RotNew =  RotHap * RotArm
+    # Euler angles in radians
+    EulNew_rad = RotNew.as_euler('xyz')
+    # Convert back to degrees and wrap to [-180, 180]
+    EulNew_deg = (np.rad2deg(EulNew_rad) + 180) % 360 - 180
+    return EulNew_deg
+
 class HapticXArmNode(Node):
     def __init__(self):
         super().__init__('haptic_to_xarm_node')
         # Latest haptic data
         self.haptic_pos = np.zeros(3)
         self.haptic_ori = np.zeros(3)
+        self.haptic_but = np.zeros(1)
 
         # Scale & offset
         self.scale = np.array([1, 1, 1])
         self.offset = np.array([0.415, 0, 0.2])
 
         # Default speed and pose
-        self.xarm_speed = 50
+        self.xarm_speed = 30
         self.xarm_pos = [415, 0, 200, -180, 0, -130]
+
+        # Default haptic pose
+        self.haptic_def_pos = ([0.018854, 0.001639, -0.068857] + self.offset[0:3]) * 1000 * self.scale[0:3]
+        self.haptic_def_ori = orientation_transformation(np.deg2rad(self.xarm_pos[3:6]), np.deg2rad([0, 0, 0]))
         
         # Motion smoother
         # self.pos_filter = LowPassFilter(alpha=0.25)
@@ -55,10 +73,14 @@ class HapticXArmNode(Node):
         self.declare_parameter('button_topic', '/haptic_button')
         self.declare_parameter('xarm_ip', '192.168.1.245')
 
+        self.declare_parameter('use_orientation', True)
+
         self.position_topic = self.get_parameter('position_topic').get_parameter_value().string_value
         self.orientation_topic = self.get_parameter('orientation_topic').get_parameter_value().string_value
         self.button_topic = self.get_parameter('button_topic').get_parameter_value().string_value
         self.xarm_ip = self.get_parameter('xarm_ip').get_parameter_value().string_value
+        
+        self.use_orientation = self.get_parameter('use_orientation').get_parameter_value().bool_value
         
         # Connect robot
         self.xarm = XArmAPI(self.xarm_ip)
@@ -67,7 +89,7 @@ class HapticXArmNode(Node):
         # Subscriber to haptic topic
         self.sub_pos = self.create_subscription(Float32MultiArray, self.position_topic, self.pos_cb, 10)
         self.sub_ori = self.create_subscription(Float32MultiArray, self.orientation_topic, self.ori_cb, 10)
-        self.sub_btn = self.create_subscription(Bool, self.button_topic, self.button_cb, 10)
+        self.sub_btn = self.create_subscription(Float32, self.button_topic, self.button_cb, 10)
         self.sub_vel = self.create_subscription(Float32, "/speed", self.speed_cb, 10)
         
         # Publisher target pose
@@ -88,16 +110,15 @@ class HapticXArmNode(Node):
 
     def pos_cb(self, msg):
         self.haptic_pos = np.array(msg.data[:3])
-        # self.haptic_pos = self.pos_filter.filter(msg.data[:3])
+        return
+        self.haptic_pos = self.pos_filter.filter(msg.data[:3])
 
     def ori_cb(self, msg):
         self.haptic_ori = np.array(msg.data[:3])
 
     def button_cb(self, msg):
         return
-        # if msg.data:
-        #     self.get_logger().info("Button pressed, stopping node")
-        #     rclpy.shutdown()
+        self.haptic_but = np.array(msg.data)
 
     def speed_cb(self, msg):
         self.xarm_speed = float(msg.data)
@@ -106,19 +127,20 @@ class HapticXArmNode(Node):
         target = np.zeros(6)
         target[0:3] = (self.haptic_pos + self.offset) * 1000 *self.scale
         
-        # # --- Orientation mapping (XYZ to ZYX) ---
-        # a = self.haptic_ori  
-        # r = R.from_euler('xyz', a)          
-        # c = r.as_euler('zyx')
-        
-        target[3] = self.xarm_pos[3] 
-        target[4] = self.xarm_pos[4]  
-        target[5] = self.xarm_pos[5] 
+        if self.use_orientation:
 
-        # target[3] = np.rad2deg(c[2])  
-        # target[4] = np.rad2deg(c[1])  
-        # target[5] = np.rad2deg(c[0]) 
+            # --- Orientation mapping (XYZ to ZYX) ---   
+            target[3] = orientation_transformation(np.deg2rad(self.xarm_pos[3:6]), self.haptic_ori)[0]
+            target[4] = orientation_transformation(np.deg2rad(self.xarm_pos[3:6]), self.haptic_ori)[1]
+            target[5] = orientation_transformation(np.deg2rad(self.xarm_pos[3:6]), self.haptic_ori)[2]
         
+        else:
+
+            # --- Fixed Orientation ---
+            target[3] = self.xarm_pos[3]  
+            target[4] = self.xarm_pos[4]  
+            target[5] = self.xarm_pos[5]
+ 
         msg_pos = Float32MultiArray(data=target[0:3])
         msg_ori = Float32MultiArray(data=target[3:6])
 
@@ -130,11 +152,17 @@ class HapticXArmNode(Node):
 def main():
     rclpy.init()
     node = HapticXArmNode()
-
-    rclpy.spin(node)
-    node.xarm.reset(True)
-    node.xarm.disconnect()
-    rclpy.shutdown()
-
+    
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.xarm.set_position(x=415, y=0, z=350, roll=180, pitch=0, yaw=-130, speed=80, wait=True)
+        node.xarm.disconnect()
+        print("Job Finished!")
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+            
 if __name__ == '__main__':
     main()

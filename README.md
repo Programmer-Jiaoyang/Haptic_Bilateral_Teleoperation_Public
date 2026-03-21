@@ -8,7 +8,7 @@ This demo shows how to build a haptic bilateral teleoperation system with **Ufac
 
 **Python:** 3.9.13
 
-Currently, the demo only shows the teleoperation in X,Y,Z directions. The orientation of the slave robot is kept as fixed.
+Visit our Github page for more detail about the project: https://programmer-jiaoyang.github.io/Haptic_Bilateral_Teleoperation_Private/
 
 
 
@@ -44,7 +44,7 @@ ros2 launch hbts_python robot_state.launch.py
 ros2 launch hbts_python haptic_state.launch.py
 ```
 
- A demo that tests the **haptic device connection  to the  PC**. The pose of the haptic device is visualized.
+ A demo that tests the **haptic device connection  to the  PC**. The pose and the gripper state of the haptic device are visualized.
 
 ```
 ros2 launch hbts_python robot_planner_1.launch.py
@@ -59,10 +59,16 @@ ros2 launch hbts_python robot_planner_2.launch.py
  A demo that tests **robot planner 2**, which uses **arm.set_servo_cartesian()**. Other settings are the same as in the previous launch file.
 
 ```
-ros2 launch hbts_python hbts_demo.launch.py 
+ros2 launch hbts_python robot_planner_3.launch.py
 ```
 
-A demo that demonstrates  the **force rendering function** and **master-slave motion** **between the haptic device and robotic arm** using planner 2. The demo is configured to secure the safe **interaction with the pillow**.
+ A demo that tests **robot planner 3**, which uses **arm.set_servo_cartesian()**. Further support teleoperation with **xArm gripper** .
+
+```
+ros2 launch hbts_python hbts_touch_demo.launch.py 
+```
+
+A demo that demonstrates  the **force rendering function** and **master-slave motion** **between the haptic device and robotic arm** using planner 2. The demo is configured to **touch** the the pillow.
 
 
 
@@ -87,7 +93,8 @@ Version 0.0.4
 
 Version 0.0.5
 
-- To be updated
+- Add support for orientation teleoperation.
+- Add support for **xArm gripper** teleoperation.
 
 
 

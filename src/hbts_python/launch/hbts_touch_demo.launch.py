@@ -17,7 +17,7 @@ def generate_launch_description():
         executable='ft_filter',
         name='ft_filter',
         output='screen',
-        parameters=[{'topic': '/ft_data'}, {'scale_z': 0.125}]
+        parameters=[{'topic': '/ft_data'}, {'scale_z': 0.4}]
     )
 
     # 3. The Haptic Node
@@ -44,6 +44,7 @@ def generate_launch_description():
         executable='xarm_motion_planner_2',
         name='xarm_planner',
         output='screen',
+        parameters=[{'use_orientation': False}]
     )
     
     # 6. The Keyboard Node 

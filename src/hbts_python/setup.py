@@ -28,6 +28,7 @@ setup(
         'xarm_state_publisher = hbts_python.xarm_state_publisher:main',
         'xarm_motion_planner_1 = hbts_python.xarm_motion_planner_1:main',
         'xarm_motion_planner_2 = hbts_python.xarm_motion_planner_2:main',
+        'xarm_motion_planner_3 = hbts_python.xarm_motion_planner_3:main',
         'topic_visualizer = hbts_python.topic_visualizer:main',
         'keyboard_publisher = hbts_python.keyboard_publisher:main',
         ],

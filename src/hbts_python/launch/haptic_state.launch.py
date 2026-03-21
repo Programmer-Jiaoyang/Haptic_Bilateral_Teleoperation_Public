@@ -8,14 +8,14 @@ def generate_launch_description():
         executable='haptic_driver',
         name='haptic_driver',
         output='screen',
-        parameters=[{'use_haptic': False}]
+        parameters=[{'use_haptic': False}, {'simulate_button': False}]
     )
 
     # 2. The Visualizer Node 
     haptic_pos_visualizer_node = Node(
         package='hbts_python',
         executable='topic_visualizer',
-        name='haptic_visualizer',
+        name='haptic_pos_visualizer',
         output='screen',
         parameters=[{'topic': '/haptic_position'}, {'buffer': 6000}]
     )
@@ -24,14 +24,24 @@ def generate_launch_description():
     haptic_ori_visualizer_node = Node(
         package='hbts_python',
         executable='topic_visualizer',
-        name='haptic_visualizer',
+        name='haptic_ori_visualizer',
         output='screen',
         parameters=[{'topic': '/haptic_orientation'}, {'buffer': 6000}]
+    )
+
+    # 4. The Visualizer Node 
+    haptic_but_visualizer_node = Node(
+        package='hbts_python',
+        executable='topic_visualizer',
+        name='haptic_but_visualizer',
+        output='screen',
+        parameters=[{'topic': '/haptic_button'}, {'buffer': 6000}, {'type': 'Float32'}]
     )
 
 
     return LaunchDescription([
         haptic_driver_node,
         haptic_pos_visualizer_node,
-        haptic_ori_visualizer_node
+        haptic_ori_visualizer_node,
+        haptic_but_visualizer_node,
     ])

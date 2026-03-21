@@ -1,13 +1,13 @@
 """
 ROS2 Node: Haptic to XArm
-Subscribes to haptic device pose, processes it, and moves the robot in real-time.
+Subscribes to haptic device pose, processes it, and moves the robot in real-time. Add support for gripper.
 Mapping strategy: absolute mapping
 Control strategy: arm.set_servo_cartesian
 """
 import sys
 print("Python executable:", sys.executable, flush=True)
 print("Python version:", sys.version, flush=True)
-print("Version 1.0.1", flush=True)
+print("Version 1.0.0", flush=True)
 
 import rclpy
 import time
@@ -53,13 +53,13 @@ class HapticXArmNode(Node):
         self.haptic_but = np.zeros(1)
 
         # Scale & offset
-        self.scale = np.array([1, 1, 1])
-        self.offset = np.array([0.415, 0, 0.2])
+        self.scale = np.array([5, 5, 1])
+        self.offset = np.array([0.415, 0, 0.345])
 
         # Default speed and pose
         self.xarm_speed = 30
-        self.xarm_pos = [415, 0, 200, 180, 0, -130]
-
+        self.xarm_pos = [415, 0, 345, -180, 0, -130]
+        
         # Default haptic pose
         self.haptic_def_pos = ([0.018854, 0.001639, -0.068857] + self.offset[0:3]) * 1000 * self.scale[0:3]
         self.haptic_def_ori = orientation_transformation(np.deg2rad(self.xarm_pos[3:6]), np.deg2rad([0, 0, 0]))
@@ -98,18 +98,23 @@ class HapticXArmNode(Node):
 
         # Timer to send robot commands at 100 Hz
         self.create_timer(0.01, self.send_robot_command)  
+        self.create_timer(0.2,  self.send_gripper_command) 
 
     def init_robot(self):
         self.xarm.motion_enable(True)
         self.xarm.set_mode(0)
         self.xarm.set_state(0)
-        self.xarm.move_gohome(wait=True)
         self.xarm.set_position(x=self.haptic_def_pos[0], y=self.haptic_def_pos[1], z=self.haptic_def_pos[2], roll=self.haptic_def_ori[0], pitch=self.haptic_def_ori[1], yaw=self.haptic_def_ori[2], speed=50, wait=True)
         self.xarm.set_mode(1)
         self.xarm.set_state(0)
         time.sleep(1)
         self.get_logger().info("XArm initialized. Set mode to 1") 
-
+        self.xarm.set_gripper_mode(0)
+        self.xarm.set_gripper_enable(True)
+        self.xarm.set_gripper_speed(5000)
+        time.sleep(1)
+        self.get_logger().info("XArm Gripper initialized. Set mode to 0. Speed is 5000 mm/s")
+        
     def pos_cb(self, msg):
         self.haptic_pos = np.array(msg.data[:3])
         # self.haptic_pos = self.pos_filter.filter(msg.data[:3])
@@ -118,15 +123,14 @@ class HapticXArmNode(Node):
         self.haptic_ori = np.array(msg.data[:3])
 
     def button_cb(self, msg):
-        return
-        self.haptic_but = np.array(msg.data)
+        self.haptic_but = float(msg.data)
     
     def speed_cb(self, msg):
         self.xarm_speed = float(msg.data)
 
     def send_robot_command(self):
         target = np.zeros(6)
-        target[0:3] = (self.haptic_pos + self.offset[0:3]) * 1000 * self.scale[0:3]
+        target[0:3] = (self.haptic_pos + self.offset) * 1000 *self.scale
         
         if self.use_orientation:
 
@@ -141,7 +145,7 @@ class HapticXArmNode(Node):
             target[3] = self.xarm_pos[3]  
             target[4] = self.xarm_pos[4]  
             target[5] = self.xarm_pos[5]
- 
+        
         msg_pos = Float32MultiArray(data=target[0:3])
         msg_ori = Float32MultiArray(data=target[3:6])
 
@@ -149,6 +153,13 @@ class HapticXArmNode(Node):
         self.pub_ori.publish(msg_ori)
 
         self.xarm.set_servo_cartesian(target.tolist(),speed=self.xarm_speed, is_radian=False)
+
+    def send_gripper_command(self):
+        omega_gap_m = self.haptic_but 
+        gap_mm = omega_gap_m * 1000 * (-1)       
+        xarm_cmd = int((gap_mm / 25.0) * 850 - 10)  
+        xarm_cmd = np.clip(xarm_cmd, -10, 840)
+        self.xarm.set_gripper_position(xarm_cmd, wait=False)
 
 def main():
     rclpy.init()
@@ -158,7 +169,7 @@ def main():
     except KeyboardInterrupt:
         node.xarm.set_mode(0)
         node.xarm.set_state(0)
-        node.xarm.set_position(x=415, y=0, z=350, roll=180, pitch=0, yaw=-130, speed=80, wait=True)
+        node.xarm.set_position(x=415, y=0, z=400, roll=180, pitch=0, yaw=-130, speed=80, wait=True)
         node.xarm.disconnect()
         print("Job Finished!")
     finally:
@@ -168,3 +179,4 @@ def main():
             
 if __name__ == '__main__':
     main()
+
